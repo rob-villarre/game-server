@@ -1,0 +1,10 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: server-container
+    ports:
+      - '3000:3000/udp'
+    volumes:
+      - .:/app
