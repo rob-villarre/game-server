@@ -6,42 +6,26 @@ import (
 	"net"
 	"os"
 	"time"
+
+	c "main/internal/common"
+	u "main/internal/udp"
 )
 
-type Message struct {
-	Type      string  `json:"type"`
-	PlayerId  int     `json:"player_id,omitempty"`
-	X         float64 `json:"x,omitempty"`
-	Y         float64 `json:"y,omitempty"`
-	Timestamp int64   `json:"timestamp,omitempty"`
-}
+var state = NewGameState()
 
-type Player struct {
-	Id   int
-	Addr *net.UDPAddr
-	X, Y float64
-}
-
-var players = make(map[int]*Player)
-
-func SendMessage(conn *net.UDPConn, addr *net.UDPAddr, msg Message) {
+func SendMessage(conn *net.UDPConn, addr *net.UDPAddr, msg u.Message) {
 	data, _ := json.Marshal(msg)
 	conn.WriteToUDP(data, addr)
 }
 
 func HandleConnect(conn *net.UDPConn, addr *net.UDPAddr) {
-	id := len(players) + 1
+	id := len(state.Players) + 1
 
-	players[id] = &Player{
-		Id:   id,
-		Addr: addr,
-		X:    0,
-		Y:    0,
-	}
+	state.Players[id] = NewPlayer(id, nil, c.Vector{X: 50, Y: 50}, 0.0)
 
-	ack := Message{
+	ack := u.Message{
 		Type:      "CONNECT_ACK",
-		PlayerId:  id,
+		Player:    *state.Players[id],
 		Timestamp: time.Now().Unix(),
 	}
 
@@ -58,7 +42,7 @@ func HandleClient(conn *net.UDPConn) {
 		return
 	}
 
-	var msg Message
+	var msg u.Message
 	err = json.Unmarshal(buffer[:n], &msg)
 	if err != nil {
 		fmt.Println("Invalid packet received:", err)

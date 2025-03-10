@@ -1,21 +1,23 @@
 package main
 
 import (
+	c "main/internal/common"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type Player struct {
-	Id       int
-	Position Vector
-	Speed    float64
-	Velocity Vector
-	TurnRate float64
-	Thrust   float64
-	Heading  float64
-	Decay    float64
-	Sprite   *ebiten.Image
+	Id           int
+	Position     c.Vector
+	Speed        float64
+	Velocity     c.Vector
+	TurnRate     float64
+	Thrust       float64
+	Heading      float64
+	Decay        float64
+	Sprite       *ebiten.Image
+	EngineEffect *ebiten.Image
 
 	ThrustRange   [2]float64 // Min and Max thrust (m/s^2)
 	TurnRateRange [2]float64 // Min and Max turn rate (degrees/sec)
@@ -25,15 +27,16 @@ type Player struct {
 	Mass          float64    // Object mass (kg)
 }
 
-func NewPlayer(id int, position Vector, angle float64, sprite *ebiten.Image) *Player {
+func NewPlayer(id int, position c.Vector, angle float64, sprite *ebiten.Image, engineEffect *ebiten.Image) *Player {
 	return &Player{
-		Id:       id,
-		Position: position,
-		Speed:    0.0,
-		TurnRate: 0.0,
-		Velocity: Vector{0.0, 0.0},
-		Heading:  angle,
-		Sprite:   sprite,
+		Id:           id,
+		Position:     position,
+		Speed:        0.0,
+		TurnRate:     0.0,
+		Velocity:     c.Vector{X: 0.0, Y: 0.0},
+		Heading:      angle,
+		Sprite:       sprite,
+		EngineEffect: engineEffect,
 
 		ThrustRange:   [2]float64{-480.0, 480.0},
 		TurnRateRange: [2]float64{-180.0, 180.0},
@@ -110,15 +113,15 @@ func (p *Player) Update() error {
 
 	// Use speed magnitude to get velocity vector
 	headingRad := p.Heading * (math.Pi / 180)
-	p.Velocity = Vector{
-		math.Sin(headingRad) * p.Speed,
-		-(math.Cos(headingRad) * p.Speed),
+	p.Velocity = c.Vector{
+		X: math.Sin(headingRad) * p.Speed,
+		Y: -(math.Cos(headingRad) * p.Speed),
 	}
 
 	// Update the position based off the velocities
-	p.Position = Vector{
-		p.Position.X + p.Velocity.X*dt,
-		p.Position.Y + p.Velocity.Y*dt,
+	p.Position = c.Vector{
+		X: p.Position.X + p.Velocity.X*dt,
+		Y: p.Position.Y + p.Velocity.Y*dt,
 	}
 
 	return nil
@@ -131,17 +134,33 @@ func (p *Player) Draw(screen *ebiten.Image) {
 	halfW := float64(bounds.Dx()) / 2
 	halfH := float64(bounds.Dy()) / 2
 
-	// Scale BEFORE translating to avoid weird offsets
+	// Scale before translating to avoid weird offsets
 	op.GeoM.Scale(0.5, 0.5)
 
 	// Move the origin to the center for proper rotation
 	op.GeoM.Translate(-halfW*0.5, -halfH*0.5)
 
-	// Convert degrees to radians for ebiten
-	op.GeoM.Rotate(p.Heading * (math.Pi / 180))
+	headingRad := p.Heading * (math.Pi / 180)
+	op.GeoM.Rotate(headingRad)
 
 	// Translate to actual screen position
 	op.GeoM.Translate(p.Position.X, p.Position.Y)
+
+	if p.Thrust != 0.0 {
+		engineOp := &ebiten.DrawImageOptions{}
+		engineOp.GeoM.Scale(0.5, 0.5)
+		engineOp.GeoM.Translate(-halfW*0.5, -halfH*0.5)
+		engineOp.GeoM.Rotate(headingRad)
+
+		// Offset engine effect behind the ship
+		engineOffset := float64(bounds.Dy())*0.5 - 10.0
+		engineX := p.Position.X - math.Sin(headingRad)*engineOffset
+		engineY := p.Position.Y + math.Cos(headingRad)*engineOffset
+
+		engineOp.GeoM.Translate(engineX, engineY)
+
+		screen.DrawImage(p.EngineEffect, engineOp)
+	}
 
 	screen.DrawImage(p.Sprite, op)
 }
